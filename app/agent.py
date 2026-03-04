@@ -19,6 +19,8 @@ from typing import List, Optional
 
 import google.generativeai as genai
 import nltk
+from openai import OpenAI
+from anthropic import Anthropic
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.text_rank import TextRankSummarizer
@@ -41,19 +43,26 @@ except LookupError:
 class AIResearchAgent:
     """
     Core research agent.
-    - Initial summaries: TextRank (Local)
-    - Blog generation: Google Gemini (Remote, Sequential)
+    - Initial summaries: Local TextRank (No LLM usage for speed & cost)
+    - Blog generation: Selectable LLM (Gemini, OpenAI, Claude)
     """
 
     def __init__(self) -> None:
-        api_key = os.getenv("GOOGLE_API_KEY", "")
-        self._use_llm = bool(api_key)
-        if self._use_llm:
-            genai.configure(api_key=api_key)
-            self._model = genai.GenerativeModel("gemini-2.5-flash")
+        # Gemini setup
+        gemini_key = os.getenv("GOOGLE_API_KEY", "")
+        if gemini_key:
+            genai.configure(api_key=gemini_key)
+            self._gemini_model = genai.GenerativeModel("gemini-2.0-flash")
         else:
-            self._model = None
-            logger.info("GOOGLE_API_KEY not set — blog generation will be disabled.")
+            self._gemini_model = None
+
+        # OpenAI setup
+        openai_key = os.getenv("OPENAI_API_KEY", "")
+        self._openai_client = OpenAI(api_key=openai_key) if openai_key else None
+
+        # Anthropic setup
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+        self._anthropic_client = Anthropic(api_key=anthropic_key) if anthropic_key else None
         
         # Simple lock to ensure sequential LLM requests if multiple generation calls occur
         self._llm_lock = asyncio.Lock()
@@ -63,12 +72,12 @@ class AIResearchAgent:
     # ------------------------------------------------------------------
 
     async def run(self, query: Optional[str] = None) -> List[Article]:
-        """Main orchestration: search → summarize (Local) → save → return."""
+        """Main orchestration: search → summarize (Local TextRank) → save → return."""
         raw_articles = await self.search_sources(query)
 
         processed: List[Article] = []
         for raw in raw_articles:
-            # Non-LLM summarization
+            # Non-LLM summarization to save tokens and time during search
             summary = self.summarize_article(raw)
             article = Article(
                 title=raw.title,
@@ -86,19 +95,16 @@ class AIResearchAgent:
         )
         return processed
 
-    async def generate_blog_article(self, article_ids: List[int]) -> str:
+    async def generate_blog_article(self, article_ids: List[int], model_provider: str = "gemini") -> str:
         """
         Research selected articles and generate a blog post.
-        Uses Gemini sequentially.
+        Uses the selected LLM provider (gemini, openai, claude) sequentially.
         """
-        if not self._use_llm or not self._model:
-            return "Error: GOOGLE_API_KEY not set. Cannot generate article."
-
         articles = get_articles_by_ids(article_ids)
         if not articles:
             return "Error: No articles found for the given IDs."
 
-        # Prepare context for Gemini
+        # Prepare context
         context = "\n\n".join([
             f"Title: {a.title}\nSource: {a.source}\nSummary: {a.summary}\nURL: {a.url}"
             for a in articles
@@ -121,10 +127,37 @@ class AIResearchAgent:
 
         async with self._llm_lock:
             try:
-                # Ensure sequential execution of LLM generation
-                loop = asyncio.get_event_loop()
-                response = await loop.run_in_executor(None, lambda: self._model.generate_content(prompt))
-                content = response.text
+                content = ""
+                if model_provider == "gemini":
+                    if not self._gemini_model:
+                        return "Error: GOOGLE_API_KEY not set."
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(None, lambda: self._gemini_model.generate_content(prompt))
+                    content = response.text
+                
+                elif model_provider == "openai":
+                    if not self._openai_client:
+                        return "Error: OPENAI_API_KEY not set."
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(None, lambda: self._openai_client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "user", "content": prompt}]
+                    ))
+                    content = response.choices[0].message.content
+                
+                elif model_provider == "claude":
+                    if not self._anthropic_client:
+                        return "Error: ANTHROPIC_API_KEY not set."
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(None, lambda: self._anthropic_client.messages.create(
+                        model="claude-3-5-sonnet-20241022",
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}]
+                    ))
+                    content = response.content[0].text
+                
+                else:
+                    return f"Error: Unknown model provider '{model_provider}'"
 
                 # Directory logic
                 today_str = datetime.now().strftime("%Y-%m-%d")
@@ -132,8 +165,8 @@ class AIResearchAgent:
                 base_dir.mkdir(parents=True, exist_ok=True)
 
                 timestamp = int(datetime.now().timestamp())
-                filename = f"blog_{timestamp}.md"
-                prompt_filename = f"blog_{timestamp}_prompt.txt"
+                filename = f"blog_{model_provider}_{timestamp}.md"
+                prompt_filename = f"blog_{model_provider}_{timestamp}_prompt.txt"
                 
                 file_path = base_dir / filename
                 prompt_path = base_dir / prompt_filename

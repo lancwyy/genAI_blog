@@ -99,10 +99,10 @@ async def list_articles():
 
 
 @app.post("/generate-blog", response_class=HTMLResponse)
-async def generate_blog(request: Request, article_ids: List[int] = Form(...)):
+async def generate_blog(request: Request, article_ids: List[int] = Form(...), llm_model: str = Form("gemini")):
     """Generate a blog article from selected research articles."""
     agent = AIResearchAgent()
-    file_path = await agent.generate_blog_article(article_ids)
+    file_path = await agent.generate_blog_article(article_ids, model_provider=llm_model)
     
     if "Error" in file_path:
         return f"<div class='alert alert--danger'>{file_path}</div>"

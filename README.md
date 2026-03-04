@@ -7,8 +7,8 @@ An AI-powered web application that searches, summarizes, and generates professio
 - **Automatic Search** — One-click fetch of the latest AI news using pre-configured queries (*AI*, *large language model*, *AI agent*)
 - **Keyword Search** — Enter any keywords or description to find targeted content
 - **Multi-Source** — Aggregates results from arXiv (with rate limiting), Hacker News, and AI blog RSS feeds
-- **Selectable Results** — Results are displayed in a list with checkboxes for easy selection
-- **Blog Article Generation** — Research and synthesize a professional blog post from selected articles using **Google Gemini** (`gemini-2.5-flash`)
+- **Local Summarization** — Fast, cost-effective summaries using **TextRank** (no LLM calls during search)
+- **Selectable Blog Generation** — Research and synthesize a professional blog post from selected articles using your choice of **Gemini**, **OpenAI (GPT-4o)**, or **Claude (3.5 Sonnet)**
 - **Persistent Storage** — All results are stored in SQLite for later retrieval
 - **DB Admin UI** — Built-in `sqlite-web` interface for database management
 
@@ -18,7 +18,8 @@ An AI-powered web application that searches, summarizes, and generates professio
 |-----------|-----------------------------------------|
 | Backend   | Python 3.11, FastAPI                    |
 | Frontend  | HTML + HTMX (minimal JS)               |
-| AI        | Google Gemini 2.5 Flash (summarization & gen) |
+| AI (Gen)  | Gemini, GPT-4o, Claude 3.5              |
+| AI (Sum)  | TextRank (Local via `sumy`)             |
 | Sources   | arXiv API, HN Algolia, RSS             |
 | Storage   | SQLite                                  |
 | Infra     | Docker, Docker Compose                  |
@@ -32,15 +33,20 @@ git clone <repo-url>
 cd <project-dir>
 ```
 
-### 2. Set your Google API key
+### 2. Set your API keys
 
-Create a `.env` file in the project root:
+Create a `.env` file in the project root with at least one provider key:
 
 ```
+# Required for Gemini
 GOOGLE_API_KEY=your_gemini_api_key_here
+
+# Optional: Required for OpenAI/Claude features
+OPENAI_API_KEY=your_openai_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
 ```
 
-> Without a key, summaries will use a simple text extraction fallback and blog generation will be disabled.
+> **Note**: Summaries always use local TextRank to save cost. LLM keys are only used when you click the "Generate Article" button.
 
 ### 3. Start the application
 

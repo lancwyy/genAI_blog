@@ -110,6 +110,16 @@
                 <div id="loading-blog" class="loading-indicator" style="margin-right: 1.5rem; padding: 0;">
                     <div class="spinner" style="width: 24px; height: 24px;"></div>
                 </div>
+                
+                <div class="llm-selector" style="margin-right: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="llm_model" style="font-weight: 500; color: var(--text-muted);">使用大模型：</label>
+                    <select name="llm_model" id="llm_model" class="search-form__input" style="width: auto; padding: 0.5rem 1rem; height: 44px; margin: 0;">
+                        <option value="gemini">Gemini (Default)</option>
+                        <option value="openai">OpenAI (GPT-4o)</option>
+                        <option value="claude">Claude (Claude-3.5)</option>
+                    </select>
+                </div>
+
                 <button type="submit" class="btn btn--primary" style="padding: 0.8rem 2.5rem; font-size: 1.1rem;">
                     🚀 研究並生成文章
                 </button>
