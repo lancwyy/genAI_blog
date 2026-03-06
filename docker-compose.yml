@@ -5,9 +5,8 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
-    environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      - GROQ_API_KEY=${GROQ_API_KEY:-}
+    env_file:
+      - .env
     restart: unless-stopped
 
   sqlite-admin:
