@@ -257,6 +257,11 @@ async def admin_bulk_delete_blogs(request: Request, date_str: str = Form(...), f
         files = sorted([f.name for f in blog_base.glob("*") if f.is_file()], reverse=True)
     
     if not files:
+        if blog_base.exists() and not any(blog_base.iterdir()):
+            try:
+                blog_base.rmdir()
+            except OSError:
+                pass
         return "<p style='color: var(--text-muted); padding: 1rem;'>此日期的檔案已全數刪除。</p>"
 
     html = f"""
@@ -298,6 +303,15 @@ async def admin_delete_blog(date_str: str, filename: str):
     file_path = Path("/app/blog_article") / date_str / filename
     if file_path.exists():
         file_path.unlink()
+        
+        # Check if dir is now empty
+        dir_path = file_path.parent
+        if dir_path.exists() and not any(dir_path.iterdir()):
+            try:
+                dir_path.rmdir()
+            except OSError:
+                pass
+                
         return ""  # HTMX swaps out the list item
     return HTMLResponse("File not found", status_code=404)
 
