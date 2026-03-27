@@ -48,3 +48,4 @@ docker-compose.override.yml
 
 # Application specific
 blog_article/
+.agent/
